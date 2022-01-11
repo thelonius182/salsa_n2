@@ -21,5 +21,5 @@ res <- salsa_redis_server$subscribe(
     identical(x, "goodbye"),
   n = 1
 )
-
+ff
 
