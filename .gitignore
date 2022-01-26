@@ -27,3 +27,6 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 salsa_n2.Rproj
+.Rprofile
+.secrets
+config_nip_nxt.yaml

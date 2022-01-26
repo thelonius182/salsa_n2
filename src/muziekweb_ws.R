@@ -21,7 +21,7 @@ muw_track_elm <- function(muw_req, muw_col_name, muw_xpath_var = NULL) {
 }
 
 # set_muw_result()
-muw_album_id = "CLX1261"
+muw_album_id = "ECX1168"
 muw_usr <- key_get(service = "muziekweb-ws-usr")
 muw_pwd <- key_get(service = "muziekweb-ws-pwd")
 
@@ -101,6 +101,13 @@ for (prf_n_chr in muw_prf_n$n_uitvoerenden) {
 album_info <- muw_tracks_id
 album_info <- bind_cols(album_info, muw_album)
 album_info <- bind_cols(album_info, muw_tracks_len)
+album_info <- bind_cols(album_info, muw_tracks_tit)
 album_info <- bind_cols(album_info, muw_tracks_tit_b)
 album_info <- bind_cols(album_info, muw_tracks_tit_add)
 album_info <- bind_cols(album_info, muw_prf)
+
+# zorg dat er altijd een titel is, zonodig door 'titel_en_deel' te kiezen
+album_info.1 <- album_info %>% 
+  mutate(tmp_titel = if_else(str_length(str_trim(titel, side = "both")) == 0, titel_en_deel, titel)) %>% 
+  rename(titel_w_nulls = titel, titel = tmp_titel) %>% 
+  select(-titel_w_nulls, -titel_en_deel)
