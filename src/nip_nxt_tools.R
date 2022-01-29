@@ -99,4 +99,3 @@ gd_albums_and_tracks <- function(open_playlists) {
   
   return(muziekweb.3)
 }
-

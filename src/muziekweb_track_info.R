@@ -146,3 +146,51 @@ for (cur_album_id in df_albums$muw_album_id) {
 # uitdunnen: alleen de tracks die in de spreadsheet staan
 df_albums_and_tracks.2 <- df_albums_and_tracks.1 %>% 
   inner_join(all_album_info, by = c("muw_track_id" = "track_id"))
+
+# groepeer op titel > 1 track per werk
+df_albums_and_tracks.3 <- df_albums_and_tracks.2 %>% 
+  group_by(titel) %>% 
+  mutate(werk = row_number(),
+         werk_lengte = sum(as.integer(secs))) %>% 
+  ungroup() %>% 
+  filter(werk == 1) 
+
+df_albums_and_tracks.4 <- df_albums_and_tracks.3 %>% 
+  mutate(componist = sub("^([^(]+) \\(componist\\), (.*)$", "\\1", uitvoerenden, perl=TRUE, ignore.case=TRUE),
+         uitvoerenden = sub("^([^(]+) \\(componist\\), (.*)$", "\\2", uitvoerenden, perl=TRUE, ignore.case=TRUE),
+         tot_time = NA_real_,
+         detect = T,
+         keuze = T,
+         lengte = werk_lengte,
+         vt_blok = NA_character_,
+         opnameNr = muw_track_id) %>% 
+  select(componist, titel, tot_time, detect, keuze, lengte, playlist, vt_blok, uitvoerenden, album, opnameNr) %>% 
+  arrange(componist, opnameNr)
+
+# add to GD
+nn_ss <- config$url_nip_nxt
+
+# TEST
+# nn_ss <- "https://docs.google.com/spreadsheets/d/11i6tdUYZ8wTge97tTwEUXO_EE-6h9rOlMD4Co9m-qfk"
+# TEST
+
+rule_checkbox <- googlesheets4:::new(
+  "DataValidationRule",
+  condition = googlesheets4:::new_BooleanCondition(type = "BOOLEAN"),
+  inputMessage = "Lorem ipsum dolor sit amet",
+  strict = TRUE,
+  showCustomUi = TRUE
+)
+
+# "selectievak"-validatie van kolom 'Keuze" verwijderen, zodat het vergroten vd sheet geen ongewilde cellen meekopieert
+# NB dit is een hack van Jenny Bryan: https://github.com/tidyverse/googlesheets4/issues/6
+sp <- sheet_properties(ss = nn_ss) %>% filter(name == "nipper-select")
+nn_bottom_col_E <- paste0("nipper-select!E", sp$grid_rows, ":E", sp$grid_rows)
+googlesheets4:::range_add_validation(nn_ss, range = nn_bottom_col_E, rule = NULL)
+
+# album-infoblok toevoegen
+sheet_resize(ss = nn_ss, sheet = "nipper-select", nrow = sp$grid_rows + nrow(df_albums_and_tracks.4), exact = F)
+sheet_append(ss = nn_ss, data = df_albums_and_tracks.4, sheet = "nipper-select") 
+
+# toon kolom 'Keuze' weer als selectievakjes
+googlesheets4:::range_add_validation(nn_ss, range = "nipper-select!E3:E", rule = rule_checkbox)
