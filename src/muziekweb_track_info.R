@@ -6,6 +6,7 @@ suppressWarnings(suppressPackageStartupMessages(library(googlesheets4)))
 suppressWarnings(suppressPackageStartupMessages(library(yaml)))
 suppressWarnings(suppressPackageStartupMessages(library(fs)))
 suppressWarnings(suppressPackageStartupMessages(library(magrittr)))
+suppressWarnings(suppressPackageStartupMessages(library(hms)))
 
 config <- read_yaml("config_nip_nxt.yaml")
 
@@ -159,38 +160,57 @@ df_albums_and_tracks.4 <- df_albums_and_tracks.3 %>%
   mutate(componist = sub("^([^(]+) \\(componist\\), (.*)$", "\\1", uitvoerenden, perl=TRUE, ignore.case=TRUE),
          uitvoerenden = sub("^([^(]+) \\(componist\\), (.*)$", "\\2", uitvoerenden, perl=TRUE, ignore.case=TRUE),
          tot_time = NA_real_,
-         detect = T,
+         detect = NA,
          keuze = T,
-         lengte = werk_lengte,
-         vt_blok = NA_character_,
+         lengte = as.character(hms(seconds = werk_lengte)),
+         # vt_blok = NA_character_,
          opnameNr = muw_track_id) %>% 
-  select(componist, titel, tot_time, detect, keuze, lengte, playlist, vt_blok, uitvoerenden, album, opnameNr) %>% 
-  arrange(componist, opnameNr)
+  group_by(componist) %>% 
+  mutate(vt_blok = row_number()) %>% 
+  ungroup() %>% 
+  group_by(vt_blok) %>% 
+  mutate(vt_blok_index = if_else(vt_blok == 1, row_number(), NA_integer_)) %>% 
+  ungroup() %>%
+  select(componist, titel, tot_time, detect, keuze, lengte, playlist, vt_blok_index, vt_blok, uitvoerenden, album, opnameNr) %>% 
+  arrange(componist, vt_blok_index, vt_blok) %>% 
+  fill(vt_blok_index) %>% 
+  mutate(vt_blok_id = paste0(LETTERS[vt_blok_index], str_pad(vt_blok, width = 2, side = "left", pad = "0"))) %>% 
+  select(componist, titel, tot_time, detect, keuze, lengte, playlist, vt_blok_id, uitvoerenden, album, opnameNr) %>% 
+  arrange(vt_blok_id)
 
-# add to GD
-nn_ss <- config$url_nip_nxt
-
-# TEST
-# nn_ss <- "https://docs.google.com/spreadsheets/d/11i6tdUYZ8wTge97tTwEUXO_EE-6h9rOlMD4Co9m-qfk"
-# TEST
-
-rule_checkbox <- googlesheets4:::new(
-  "DataValidationRule",
-  condition = googlesheets4:::new_BooleanCondition(type = "BOOLEAN"),
-  inputMessage = "Lorem ipsum dolor sit amet",
-  strict = TRUE,
-  showCustomUi = TRUE
-)
-
-# "selectievak"-validatie van kolom 'Keuze" verwijderen, zodat het vergroten vd sheet geen ongewilde cellen meekopieert
-# NB dit is een hack van Jenny Bryan: https://github.com/tidyverse/googlesheets4/issues/6
-sp <- sheet_properties(ss = nn_ss) %>% filter(name == "nipper-select")
-nn_bottom_col_E <- paste0("nipper-select!E", sp$grid_rows, ":E", sp$grid_rows)
-googlesheets4:::range_add_validation(nn_ss, range = nn_bottom_col_E, rule = NULL)
-
-# album-infoblok toevoegen
-sheet_resize(ss = nn_ss, sheet = "nipper-select", nrow = sp$grid_rows + nrow(df_albums_and_tracks.4), exact = F)
-sheet_append(ss = nn_ss, data = df_albums_and_tracks.4, sheet = "nipper-select") 
-
-# toon kolom 'Keuze' weer als selectievakjes
-googlesheets4:::range_add_validation(nn_ss, range = "nipper-select!E3:E", rule = rule_checkbox)
+# alleen als er iets te doen valt...
+if (nrow(df_albums_and_tracks.4) > 0) {
+  # add to GD
+  nn_ss <- config$url_nip_nxt
+  
+  # TEST
+  # nn_ss <- "https://docs.google.com/spreadsheets/d/11i6tdUYZ8wTge97tTwEUXO_EE-6h9rOlMD4Co9m-qfk"
+  # TEST
+  
+  rule_checkbox <- googlesheets4:::new(
+    "DataValidationRule",
+    condition = googlesheets4:::new_BooleanCondition(type = "BOOLEAN"),
+    inputMessage = "Lorem ipsum dolor sit amet",
+    strict = TRUE,
+    showCustomUi = TRUE
+  )
+  
+  # "selectievak"-validatie van kolom 'Keuze" verwijderen, zodat het vergroten vd sheet geen ongewilde cellen mee-kopieert
+  # NB dit is een hack van Jenny Bryan: https://github.com/tidyverse/googlesheets4/issues/6
+  sp <- sheet_properties(ss = nn_ss) %>% filter(name == "nipper-select")
+  nn_bottom_col_E <- paste0("nipper-select!E", sp$grid_rows, ":E", sp$grid_rows)
+  googlesheets4:::range_add_validation(nn_ss, range = nn_bottom_col_E, rule = NULL)
+  
+  # album-infoblok toevoegen
+  # sheet_resize(ss = nn_ss, sheet = "nipper-select", nrow = sp$grid_rows + nrow(df_albums_and_tracks.4), exact = F)
+  sheet_append(ss = nn_ss, data = df_albums_and_tracks.4, sheet = "nipper-select")
+  
+  # toon kolom 'Keuze' weer als selectievakjes
+  googlesheets4:::range_add_validation(nn_ss, range = "nipper-select!E3:E", rule = rule_checkbox)
+  
+  # reset de selectievakjes in tabblad "muziekweb" (markeer als "data opgehaald")
+  sp <- sheet_properties(ss = nn_ss) %>% filter(name == "muziekweb")
+  nn_muw_keuze_col <- paste0("muziekweb!D5:D", sp$grid_rows)
+  tb_reset_keuzes <-tibble(keuze = FALSE, cz_row_id = seq_len(length.out = sp$grid_rows - 4)) %>% select(keuze)
+  range_write(ss = nn_ss, data = tb_reset_keuzes, range = nn_muw_keuze_col, col_names = F)
+}

@@ -38,8 +38,8 @@ gd_albums_and_tracks <- function(open_playlists) {
   
   # limit to selected album-id's and tracks of open playlists
   muziekweb.1 <-
-    muziekweb_raw %>% filter(!is.na(keuze) &
-                               playlist %in% open_playlists$playlist) # playlists.1$playlist)
+    muziekweb_raw %>% filter(keuze &
+                             playlist %in% open_playlists$playlist) # playlists.1$playlist)
   
   # separate the track-id's
   muziekweb.2 <- muziekweb.1 %>%
