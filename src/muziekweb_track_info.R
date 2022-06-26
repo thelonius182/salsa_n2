@@ -12,8 +12,11 @@ config <- read_yaml("config_nip_nxt.yaml")
 
 source("src/nip_nxt_tools.R", encoding = "UTF-8")
 
+# aanmelden bij Google
+gs4_auth(email = "cz.teamservice@gmail.com")
+
 df_open_playlists.1 <- gd_open_playlists()
-df_albums_and_tracks.1 <- gd_albums_and_tracks(df_open_playlists.1)
+df_albums_and_tracks.1 <- gd_albums_and_tracks_muw(df_open_playlists.1)
 df_albums <- df_albums_and_tracks.1 %>% select(muw_album_id) %>% distinct()
 
 # create Google Spreadsheet blocks for open playlists
@@ -26,6 +29,7 @@ for (cur_album_id in df_albums$muw_album_id) {
   
   # TEST
   # cur_album_id = "DBX11310"
+  # cur_album_id = "JFX7373"
   # TEST
  
   # cur_playlist <-
@@ -47,6 +51,7 @@ for (cur_album_id in df_albums$muw_album_id) {
       type = "text/xml",
       encoding = "UTF-8"
     )
+  
   muw_xml <- as_xml_document(muw_txt)
   
   muw_album <- muw_track_elm("a", muw_col_name = "album")
@@ -69,6 +74,9 @@ for (cur_album_id in df_albums$muw_album_id) {
                                      "//Result/Album/Tracks/Track/Performers"),
                         "Count") %>% as_tibble()
   names(muw_prf_n) <- "n_uitvoerenden"
+  
+  muw_catalogue_type <- 
+    muw_track_elm("p", "PrimaryCatalogueCode", muw_col_name = "cat_type")[[1,1]]
   muw_prf_name <-
     muw_track_elm("p", "PresentationName", muw_col_name = "uitvoerende")
   muw_prf_role <-
@@ -92,12 +100,17 @@ for (cur_album_id in df_albums$muw_album_id) {
       # TEST
       # n1 <- 2L
       # TEST
-      
-      cur_prf_by_track <-
-        tibble(prf_txt = paste0(muw_prf_name$uitvoerende[[n1]],
-                                " (",
-                                muw_prf_role$rol[[n1]],
-                                ")"))
+
+      if (muw_catalogue_type == "POPULAR") {
+        cur_prf_by_track <-
+          tibble(prf_txt = muw_prf_name$uitvoerende[[n1]])
+      } else {
+        cur_prf_by_track <-
+          tibble(prf_txt = paste0(muw_prf_name$uitvoerende[[n1]],
+                                  " (",
+                                  muw_prf_role$rol[[n1]],
+                                  ")"))
+      }
       
       if (is.null(prf_tib_by_track)) {
         prf_tib_by_track <- cur_prf_by_track
@@ -144,73 +157,136 @@ for (cur_album_id in df_albums$muw_album_id) {
   
 }
 
-# uitdunnen: alleen de tracks die in de spreadsheet staan
-df_albums_and_tracks.2 <- df_albums_and_tracks.1 %>% 
-  inner_join(all_album_info, by = c("muw_track_id" = "track_id"))
-
-# groepeer op titel > 1 track per werk
-df_albums_and_tracks.3 <- df_albums_and_tracks.2 %>% 
-  group_by(titel) %>% 
-  mutate(werk = row_number(),
-         werk_lengte = sum(as.integer(secs))) %>% 
-  ungroup() %>% 
-  filter(werk == 1) 
-
-df_albums_and_tracks.4 <- df_albums_and_tracks.3 %>% 
-  mutate(componist = sub("^([^(]+) \\(componist\\), (.*)$", "\\1", uitvoerenden, perl=TRUE, ignore.case=TRUE),
-         uitvoerenden = sub("^([^(]+) \\(componist\\), (.*)$", "\\2", uitvoerenden, perl=TRUE, ignore.case=TRUE),
-         tot_time = NA_real_,
-         detect = NA,
-         keuze = T,
-         lengte = as.character(hms(seconds = werk_lengte)),
-         # vt_blok = NA_character_,
-         opnameNr = muw_track_id) %>% 
-  group_by(componist) %>% 
-  mutate(vt_blok = row_number()) %>% 
-  ungroup() %>% 
-  group_by(vt_blok) %>% 
-  mutate(vt_blok_index = if_else(vt_blok == 1, row_number(), NA_integer_)) %>% 
-  ungroup() %>%
-  select(componist, titel, tot_time, detect, keuze, lengte, playlist, vt_blok_index, vt_blok, uitvoerenden, album, opnameNr) %>% 
-  arrange(componist, vt_blok_index, vt_blok) %>% 
-  fill(vt_blok_index) %>% 
-  mutate(vt_blok_id = paste0(LETTERS[vt_blok_index], str_pad(vt_blok, width = 2, side = "left", pad = "0"))) %>% 
-  select(componist, titel, tot_time, detect, keuze, lengte, playlist, vt_blok_id, uitvoerenden, album, opnameNr) %>% 
-  arrange(vt_blok_id)
-
-# alleen als er iets te doen valt...
-if (nrow(df_albums_and_tracks.4) > 0) {
-  # add to GD
-  nn_ss <- config$url_nip_nxt
+if (nrow(df_albums_and_tracks.1) > 0) {
+  # uitdunnen: alleen de tracks die in de spreadsheet staan
+  df_albums_and_tracks.2 <- df_albums_and_tracks.1 %>%
+    inner_join(all_album_info, by = c("muw_track_id" = "track_id"))
   
-  # TEST
-  # nn_ss <- "https://docs.google.com/spreadsheets/d/11i6tdUYZ8wTge97tTwEUXO_EE-6h9rOlMD4Co9m-qfk"
-  # TEST
+  # groepeer op titel
+  df_albums_and_tracks.3 <- df_albums_and_tracks.2 %>%
+    group_by(titel) %>%
+    mutate(werk = row_number(),
+           werk_lengte = sum(as.integer(secs))) %>%
+    ungroup() %>%
+    mutate(album_key = if_else(werk == 1, muw_track_id, NA_character_)) %>%
+    fill(album_key, .direction = "down")
   
-  rule_checkbox <- googlesheets4:::new(
-    "DataValidationRule",
-    condition = googlesheets4:::new_BooleanCondition(type = "BOOLEAN"),
-    inputMessage = "Lorem ipsum dolor sit amet",
-    strict = TRUE,
-    showCustomUi = TRUE
-  )
+  # bewaar koppeling album_key/tracks, voor de bestelling later (in muziekweb_audio.R)
+  # NB - df_albums_and_tracks_all bewaart album_keys van ALLE selecties tot nu toe, omdat een playlist
+  #      soms in delen ontstaat. Alleen het laatste deel bewaren is dan te weinig.
+  df_albums_and_tracks_file <-
+    "C:/Users/gergiev/cz_rds_store/df_albums_and_tracks_all.RDS"
+  # bestaande set inlezen
+  df_albums_and_tracks_all <- read_rds(df_albums_and_tracks_file)
+  # aanvulling voorbereiden
+  df_albums_and_tracks.3.1 <- df_albums_and_tracks.3 %>%
+    select(album_key, muw_album_id, muw_track)
+  # dubbele album_keys voorkomen (bv als zelfde df_3.1 per ongeluk nog een keer toegevoegd wordt)
+  df_albums_and_tracks_all %<>% add_row(df_albums_and_tracks.3.1) %>% distinct()
+  # nu pas opslaan
+  saveRDS(object = df_albums_and_tracks_all, file = df_albums_and_tracks_file)
   
-  # "selectievak"-validatie van kolom 'Keuze" verwijderen, zodat het vergroten vd sheet geen ongewilde cellen mee-kopieert
-  # NB dit is een hack van Jenny Bryan: https://github.com/tidyverse/googlesheets4/issues/6
-  sp <- sheet_properties(ss = nn_ss) %>% filter(name == "nipper-select")
-  nn_bottom_col_E <- paste0("nipper-select!E", sp$grid_rows, ":E", sp$grid_rows)
-  googlesheets4:::range_add_validation(nn_ss, range = nn_bottom_col_E, rule = NULL)
+  # 1 track per werk (voor gids, RL, draaiboek)
+  df_albums_and_tracks.3.2 <-
+    df_albums_and_tracks.3 %>% filter(werk == 1)
   
-  # album-infoblok toevoegen
-  # sheet_resize(ss = nn_ss, sheet = "nipper-select", nrow = sp$grid_rows + nrow(df_albums_and_tracks.4), exact = F)
-  sheet_append(ss = nn_ss, data = df_albums_and_tracks.4, sheet = "nipper-select")
+  # prep het blok voor GD-sheet "nipper-select"
+  df_albums_and_tracks.4 <- df_albums_and_tracks.3.2 %>%
+    mutate(
+      catalogue_type = muw_catalogue_type,
+      componist = if_else(catalogue_type == "POPULAR", 
+                          album, 
+                          sub("^([^(]+) \\(componist\\), (.*)$",
+                              "\\1",
+                              uitvoerenden,
+                              perl = TRUE,
+                              ignore.case = TRUE)
+      ),
+      uitvoerenden = sub(
+        "^([^(]+) \\(componist\\), (.*)$",
+        "\\2",
+        uitvoerenden,
+        perl = TRUE,
+        ignore.case = TRUE
+      ),
+      tot_time = NA_real_,
+      detect = NA,
+      keuze = T,
+      lengte = as.character(hms(seconds = werk_lengte)),
+      vt_blok_id = "Z99",
+      opnameNr = muw_track_id
+    ) %>%
+    arrange(playlist, componist, titel) %>%
+    # group_by(playlist, componist, titel) %>%
+    # mutate(vt_blok = row_number()) %>%
+    # ungroup() %>%
+    # group_by(vt_blok) %>%
+    # mutate(vt_blok_index = if_else(vt_blok == 1, row_number(), NA_integer_)) %>%
+    # ungroup() %>%
+    # select(componist, titel, tot_time, detect, keuze, lengte, playlist, vt_blok_index, vt_blok, uitvoerenden, album, opnameNr) %>%
+    # arrange(componist, vt_blok_index, vt_blok) %>%
+    # fill(vt_blok_index) %>%
+    # mutate(vt_blok_id = paste0(LETTERS[vt_blok_index], str_pad(vt_blok, width = 2, side = "left", pad = "0"))) %>%
+    select(
+      componist,
+      titel,
+      tot_time,
+      detect,
+      keuze,
+      lengte,
+      playlist,
+      vt_blok_id,
+      uitvoerenden,
+      album,
+      opnameNr
+    )
   
-  # toon kolom 'Keuze' weer als selectievakjes
-  googlesheets4:::range_add_validation(nn_ss, range = "nipper-select!E3:E", rule = rule_checkbox)
-  
-  # reset de selectievakjes in tabblad "muziekweb" (markeer als "data opgehaald")
-  sp <- sheet_properties(ss = nn_ss) %>% filter(name == "muziekweb")
-  nn_muw_keuze_col <- paste0("muziekweb!D5:D", sp$grid_rows)
-  tb_reset_keuzes <-tibble(keuze = FALSE, cz_row_id = seq_len(length.out = sp$grid_rows - 4)) %>% select(keuze)
-  range_write(ss = nn_ss, data = tb_reset_keuzes, range = nn_muw_keuze_col, col_names = F)
+  # alleen als er iets te doen valt...
+  if (nrow(df_albums_and_tracks.4) > 0) {
+    # ... toevoegen aan de GD-sheet
+    nn_ss <- config$url_nip_nxt
+    
+    # TEST
+    # nn_ss <- "https://docs.google.com/spreadsheets/d/11i6tdUYZ8wTge97tTwEUXO_EE-6h9rOlMD4Co9m-qfk"
+    # TEST
+    
+    rule_checkbox <- googlesheets4:::new(
+      "DataValidationRule",
+      condition = googlesheets4:::new_BooleanCondition(type = "BOOLEAN"),
+      inputMessage = "Lorem ipsum dolor sit amet",
+      strict = TRUE,
+      showCustomUi = TRUE
+    )
+    
+    # "selectievak"-validatie van kolom 'Keuze" verwijderen, zodat het vergroten vd sheet geen ongewilde cellen mee-kopieert
+    # NB dit is een hack van Jenny Bryan: https://github.com/tidyverse/googlesheets4/issues/6
+    sp <-
+      sheet_properties(ss = nn_ss) %>% filter(name == "nipper-select")
+    nn_bottom_col_E <-
+      paste0("nipper-select!E", sp$grid_rows, ":E", sp$grid_rows)
+    googlesheets4:::range_add_validation(nn_ss, range = nn_bottom_col_E, rule = NULL)
+    
+    # album-infoblok toevoegen
+    # sheet_resize(ss = nn_ss, sheet = "nipper-select", nrow = sp$grid_rows + nrow(df_albums_and_tracks.4), exact = F)
+    sheet_append(ss = nn_ss,
+                 data = df_albums_and_tracks.4,
+                 sheet = "nipper-select")
+    
+    # toon kolom 'Keuze' weer als selectievakjes
+    googlesheets4:::range_add_validation(nn_ss, range = "nipper-select!E3:E", rule = rule_checkbox)
+    
+    # reset de selectievakjes in tabblad "muziekweb" (markeer als "data opgehaald")
+    sp <- sheet_properties(ss = nn_ss) %>% filter(name == "muziekweb")
+    nn_muw_keuze_col <- paste0("muziekweb!D5:D", sp$grid_rows)
+    tb_reset_keuzes <-
+      tibble(keuze = FALSE,
+             cz_row_id = seq_len(length.out = sp$grid_rows - 4)) %>% select(keuze)
+    range_write(
+      ss = nn_ss,
+      data = tb_reset_keuzes,
+      range = nn_muw_keuze_col,
+      col_names = F
+    )
+  }
 }
+

@@ -22,24 +22,40 @@ gd_open_playlists <- function() {
   # pick the open playlists
   playlists.1 <-
     playlists_raw %>% filter(!is.na(playlist_id) &
-                               samengesteld_op == "NULL")
+                               afgeleverd_op == "NULL")
   return(playlists.1)
 }
 
 gd_albums_and_tracks <- function(open_playlists) {
   
   # TEST
-  # open_playlists <- df_open_playlists
+  # open_playlists <- df_open_playlists.1
   # TEST
   
-  # collect muziekweb album-id's and tracks in nipperNxt-spreadsheet
+  # collect album-keys in nipperNxt-spreadsheet
+  nipsel_raw <- read_sheet(ss = config$url_nip_nxt, sheet = "nipper-select")
+  
+  # limit to selected album-id's and tracks of open playlists
+  nipsel.1 <- nipsel_raw %>% 
+    filter(keuze & playlist %in% open_playlists$playlist) # playlists.1$playlist)
+
+  return(nipsel.1)
+}
+
+gd_albums_and_tracks_muw <- function(open_playlists) {
+  
+  # TEST
+  # open_playlists <- df_open_playlists.1
+  # TEST
+  
+  # collect album-keys in nipperNxt-spreadsheet
   muziekweb_raw <-
     read_sheet(ss = config$url_nip_nxt, sheet = "muziekweb")
   
-  # limit to selected album-id's and tracks of open playlists
-  muziekweb.1 <-
-    muziekweb_raw %>% filter(keuze &
-                             playlist %in% open_playlists$playlist) # playlists.1$playlist)
+  # beperk tot gekozen album-id's en tracks van open playlists
+  muziekweb.1 <- muziekweb_raw %>%
+    filter(keuze &
+             playlist %in% open_playlists$playlist) # playlists.1$playlist)
   
   # separate the track-id's
   muziekweb.2 <- muziekweb.1 %>%
@@ -50,14 +66,12 @@ gd_albums_and_tracks <- function(open_playlists) {
   track_items <- tibble(track_rrn = 0, muw_track = 0)
   
   for (cur_rrn in muziekweb.2$rrn) {
-    
     #TEST
     # cur_rrn <- 2
     #TEST
     cur_row <- muziekweb.2 %>% filter(rrn == cur_rrn)
     
     for (track_item in cur_row$track_list[[1]]) {
-      
       # TEST
       # track_item <- "5-11"
       # TEST
