@@ -27,9 +27,11 @@ all_album_info <- NULL
 
 for (cur_album_id in df_albums$muw_album_id) {
   
+  print(cur_album_id)
+  
   # TEST
   # cur_album_id = "DBX11310"
-  # cur_album_id = "JFX7373"
+  # cur_album_id = "CX1538"
   # TEST
  
   # cur_playlist <-
@@ -58,6 +60,8 @@ for (cur_album_id in df_albums$muw_album_id) {
   # muw_gen_a <- muw_track_elm("g", "Name[@Language='nl']")
   # muw_gen_b <- muw_track_elm("g", "Category/Name[@Language='nl']")
   # muw_gen_c <- muw_track_elm("g", "Category/Style/Name[@Language='nl']")
+  
+  stopifnot("Bovenstaande CD-code niet gevonden in Muziekweb-catalogus" = nrow(muw_album) > 0)
   
   muw_tracks_id <-
     muw_track_elm("t", "AlbumTrackID", muw_col_name = "track_id")
@@ -156,6 +160,7 @@ for (cur_album_id in df_albums$muw_album_id) {
   }
   
 }
+
 
 if (nrow(df_albums_and_tracks.1) > 0) {
   # uitdunnen: alleen de tracks die in de spreadsheet staan
