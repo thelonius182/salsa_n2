@@ -19,9 +19,9 @@ df_open_playlists.1 <- gd_open_playlists()
 df_albums_and_tracks.1 <- gd_albums_and_tracks_muw(df_open_playlists.1)
 df_albums <- df_albums_and_tracks.1 %>% select(muw_album_id) %>% distinct()
 
-# create Google Spreadsheet blocks for open playlists
-muw_usr <- key_get(service = "muziekweb-ws-usr")
-muw_pwd <- key_get(service = "muziekweb-ws-pwd")
+# Muziekweb cred's voor track-info webservice
+muw_ws_cred_home <- config$muw_cred
+muw_ws_cred <- read_rds(file = muw_ws_cred_home)
 
 all_album_info <- NULL
 
@@ -43,7 +43,7 @@ for (cur_album_id in df_albums$muw_album_id) {
         "https://api.cdr.nl/ExtendedInfo/v3/albumInformation.xml?albumID=",
         cur_album_id
       ),
-      authenticate(muw_usr, muw_pwd)
+      authenticate(muw_ws_cred$muw_usr, muw_ws_cred$muw_pwd)
     )
   
   muw_txt <-
