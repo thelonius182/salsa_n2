@@ -10,7 +10,7 @@ suppressWarnings(suppressPackageStartupMessages(library(hms)))
 
 config <- read_yaml("config_nip_nxt.yaml")
 
-source("src/nip_nxt_tools.R", encoding = "UTF-8")
+source("src/nip_nxt_tools.R", encoding = "UTF-8") # funcs_only
 
 # aanmelden bij Google
 gs4_auth(email = "cz.teamservice@gmail.com")
@@ -145,6 +145,7 @@ for (cur_album_id in df_albums$muw_album_id) {
   album_info %<>% add_column(muw_tracks_tit_b)
   album_info %<>% add_column(muw_tracks_tit_add)
   album_info %<>% add_column(muw_prf)
+  album_info %<>% add_column(muw_catalogue_type)
   
   # zorg dat er altijd een titel is, zonodig door 'titel_en_deel' te kiezen
   album_info.1 <- album_info %>%
@@ -160,7 +161,6 @@ for (cur_album_id in df_albums$muw_album_id) {
   }
   
 }
-
 
 if (nrow(df_albums_and_tracks.1) > 0) {
   # uitdunnen: alleen de tracks die in de spreadsheet staan
@@ -198,9 +198,11 @@ if (nrow(df_albums_and_tracks.1) > 0) {
   # prep het blok voor GD-sheet "nipper-select"
   df_albums_and_tracks.4 <- df_albums_and_tracks.3.2 %>%
     mutate(
-      catalogue_type = muw_catalogue_type,
-      componist = if_else(catalogue_type == "POPULAR", 
-                          album, 
+      # catalogue_type = muw_catalogue_type,
+      componist = if_else(muw_catalogue_type == "POPULAR", 
+                          # eerste uitvoerende in een komma-gescheiden reeks
+                          sub(",.*", "", paste0(uitvoerenden, ","), perl=TRUE), 
+                          # CLASSICAL: de componist
                           sub("^([^(]+) \\(componist\\), (.*)$",
                               "\\1",
                               uitvoerenden,
