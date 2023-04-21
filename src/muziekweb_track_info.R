@@ -200,8 +200,9 @@ if (nrow(df_albums_and_tracks.1) > 0) {
     mutate(
       # catalogue_type = muw_catalogue_type,
       componist = if_else(muw_catalogue_type == "POPULAR", 
-                          # eerste uitvoerende in een komma-gescheiden reeks
-                          sub(",.*", "", paste0(uitvoerenden, ","), perl=TRUE), 
+                          # POPULAR: het album
+                          # sub(",.*", "", paste0(uitvoerenden, ","), perl=TRUE), 
+                          paste0("van het album ", album), 
                           # CLASSICAL: de componist
                           sub("^([^(]+) \\(componist\\), (.*)$",
                               "\\1",
