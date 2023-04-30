@@ -8,7 +8,7 @@ suppressWarnings(suppressPackageStartupMessages(library(fs)))
 suppressWarnings(suppressPackageStartupMessages(library(magrittr)))
 suppressWarnings(suppressPackageStartupMessages(library(hms)))
 
-config <- read_yaml("config_nip_nxt.yaml")
+config <- read_yaml("config_nip_nxt_rata.yaml")
 
 source("src/nip_nxt_tools.R", encoding = "UTF-8") # funcs_only
 

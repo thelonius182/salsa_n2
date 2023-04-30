@@ -1,0 +1,10 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Configuratiebestand voor P0 - Get Google-CZ_data
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+gs_downloads: "C:/Users/gergiev/Downloads/cz_downloads"
+
+url_nip_nxt: "https://docs.google.com/spreadsheets/d/1mfbkQZeVqDrQqmN9d7BCcH4ueCE-0ZlElB9MqGbmw5g"
+
+cz_rds_store: "C:/Users/gergiev/cz_rds_store/branches/cz_gdrive/"
+
+muw_cred: "C:/pws_db/muw_creds.RDS"

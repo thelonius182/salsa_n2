@@ -20,9 +20,7 @@ gd_open_playlists <- function() {
     read_sheet(ss = config$url_nip_nxt, sheet = "playlists") %>% as_tibble()
   
   # pick the open playlists
-  playlists.1 <-
-    playlists_raw %>% filter(!is.na(playlist_id) &
-                               afgeleverd_op == "NULL")
+  playlists.1 <- playlists_raw %>% filter(!is.na(playlist_id) & is.na(afgeleverd_op))
   return(playlists.1)
 }
 
